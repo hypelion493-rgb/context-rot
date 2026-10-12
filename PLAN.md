@@ -27,23 +27,24 @@
 ### 単発試行（E1/E2・校正）
 
 ```
-<入力テキスト> | claude -p "<質問>" \
+<資料＋質問をすべて stdin で渡す> | claude -p \
   --safe-mode --tools "" --system-prompt "<固定の短い指示>" \
-  --model <haiku|sonnet|opus> --effort <固定> \
+  --model <claude-haiku-5-5[1m] など> --effort <固定> \
   --no-session-persistence --output-format json
 ```
 
 - `--safe-mode`: CLAUDE.md・メモリ・スキル・MCP・プラグインを無効化（認証はそのまま）
-- 空の作業ディレクトリ（`work/`）から実行し、リポジトリの設定を拾わない
+- リポジトリ外の無関係な名前のフォルダ（`~/notes-app`）から実行する。パスから検証中だと推測されるのを防ぐため
+- 本文は argv に入れず stdin で渡す（Windows の `claude.CMD` は引数中の改行でコマンドラインが切れ、後続のフラグが落ちる）
+- 200K を超える入力には `[1m]` 付きのモデル名が必要（例: `claude-haiku-5-5[1m]`）
 - **実コンテキスト長 = `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`**（キャッシュが効くと `input_tokens` 単体は小さくなるため）
 
 ### 会話試行（E5）
 
 - 1 ターン目は `--session-id <uuid>`、以降は `--resume <uuid>` で同じセッションに追記する（毎ターン別プロセス）
 - E5 は Claude Code の実利用に近づけるため、デフォルトのシステムプロンプトを使う（`--safe-mode` で個人設定だけ外す）
-- compaction 閾値は `--autocompact <tokens>` で指定する
+- compaction 閾値は環境変数 `CLAUDE_CODE_AUTO_COMPACT_WINDOW=<tokens>` で指定する（`--autocompact` フラグは `-p` + `--resume` では効かなかった）。実際の発火点はおおむね「指定値 − 33K」
 - 測定用の質問は `--resume <uuid> --fork-session --no-session-persistence` で**分岐セッション**に投げる。本流の会話に答えが混入しないようにするため
-- 代替案: 1 プロセスに `--input-format stream-json` で複数ターン流し込む。Phase 0 で (a) と比較し、compaction が発火する方を採用する
 
 ### compaction の観測
 
@@ -79,7 +80,7 @@
 
 | 要因 | 水準 |
 |---|---|
-| compaction 閾値 | `--autocompact 200000` / `400000` / `1000000`（実質発火しない） |
+| compaction 閾値 | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` = 200000 / 400000 / 1000000（実質発火しない） |
 | 言語 | 日本語 / 英語 |
 | モデル | Opus（主）。余裕があれば Sonnet |
 | 反復 | まず各条件 n=1 で全体を回し、Phase 0 で測った利用量を見て n を増やす |
@@ -103,11 +104,28 @@
 - E5b: 資料をユーザー発言ではなくファイル読み込み（Read ツール結果）として与える、よりエージェントらしい版
 - effort（low / medium / high）の比較
 
+## Phase 0 の結果（2026-10-12）
+
+| 確認項目 | 結果 |
+|---|---|
+| ログイン | Max プランで `claude -p` が動作 |
+| smoke | Haiku 5.5 で正答 |
+| 長さの校正 | 日本語 約 0.96 字/トークン、英語 約 2.9 字/トークン。単発試行の固定オーバーヘッド約 1.1〜1.2K |
+| 1M コンテキスト | `claude-haiku-5-5` は 200K 超で「Prompt is too long」。`claude-haiku-5-5[1m]` なら 286K の入力が通り正答（5.1 秒） |
+| compaction（ゲート） | 環境変数で窓を 100K にすると、約 40K トークン×4 ターンで 2 回発火（130K→12K、93K→14K）。仕込んだ事実は要約に残り、分岐セッションでの質問にも正答 → **合格** |
+| E5 の固定オーバーヘッド | Claude Code 標準のシステムプロンプト＋ツール定義で約 38K |
+
+注意点:
+- 合成したフィラー文（英語）は Haiku 5.5 の安全分類器に `[bio]` として誤検知された → 本物のパブリックドメイン文章を使う
+- 「暗証番号」などセキュリティっぽい needle はプロンプトインジェクション扱いで回答拒否された → 中立的な事実にする
+- compaction は直近のメッセージを要約せずに残す。1 ターンが大きすぎると残る部分も大きくなるため、本番では 1 ターンを 10〜20K に抑えることを検討する
+
 ## コーパス
 
 - 日本語: 青空文庫（著作権切れ作品）
 - 英語: Project Gutenberg（パブリックドメイン作品）
-- 著作権のある文章は使わない。取得したテキストは `corpus/` に置く（取得は実施前に確認する）
+- 著作権のある文章は使わない。取得したテキストは `corpus/` に置く（Git 管理外。`src/prep_corpus.py` で整形）
+- 取得済み: 夏目漱石 6 作（約 124 万字）、War and Peace と Moby-Dick（約 443 万字）
 
 ## 実行スクリプトの要件
 
@@ -145,6 +163,7 @@ context-rot/
 ├── corpus/       # パブリックドメインのテキスト（ja/, en/）
 ├── src/          # 実行・採点・解析スクリプト
 ├── results/      # 試行ごとの生ログ（JSONL）
-├── reports/      # 図とまとめ
-└── work/         # claude -p を実行する空ディレクトリ（git 管理外）
+└── reports/      # 図とまとめ
+
+（claude -p はリポジトリ外の ~/notes-app で実行する）
 ```

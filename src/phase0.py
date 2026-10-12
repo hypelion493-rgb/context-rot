@@ -81,11 +81,12 @@ def bigctx(model="haiku", target_tokens=300_000):
 def compact(model="haiku", turns=4, chars_per_turn=40_000):
     """--autocompact 100000 で会話を伸ばし、compact_boundary が出るか確かめる。"""
     sid = str(uuid.uuid4())
-    fact = "初めに覚えておいて: プロジェクト Kestrel の承認コードは QX-4817 です。"
+    fact = "最初に伝えておきます。プロジェクト Kestrel の承認コードは QX-4817 です。\n\n"
     for i in range(turns):
-        prompt = (fact + "\n" if i == 0 else "") + "次の資料を 1 行で要約して。"
+        msg = ((fact if i == 0 else "") + "以下の資料を 1 行で要約してください。\n\n<資料>\n"
+               + filler("ja", chars_per_turn, seed=i) + "\n</資料>")
         kw = {"session_id": sid} if i == 0 else {"resume": sid}
-        res = run_claude(prompt, filler("ja", chars_per_turn, seed=i), model=model,
+        res = run_claude(msg, model=model,
                          plain=False, persist=True, autocompact=100_000, **kw)
         print(f"turn {i}: ctx={ctx_tokens(res)} compactions={len(compactions(sid))}")
     probe = run_claude("プロジェクト Kestrel の承認コードは？コードのみ。", resume=sid,

@@ -108,7 +108,7 @@ if __name__ == "__main__":
     if step != "auth" and not auth():
         sys.exit("CLI がログインしていません。`claude auth login` を実行してください。")
     try:
-        {"auth": lambda m: None, "smoke": smoke, "calib": calib,
+        {"auth": lambda m: auth(), "smoke": smoke, "calib": calib,
          "bigctx": bigctx, "compact": compact}[step](model)
     except UsageLimitError as e:
         sys.exit(f"停止: {e}")

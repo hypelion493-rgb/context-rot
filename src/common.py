@@ -104,8 +104,23 @@ _EN2 = ["arranged their goods.", "lit the lanterns.", "told old stories.",
         "crossed the stone bridge."]
 
 
+_CORPUS = {}
+
+
 def filler(lang, n_chars, seed=0):
-    """指定文字数前後の仮フィラー文を生成する。"""
+    """corpus/{lang}.txt から n_chars 文字を切り出す。seed で開始位置を変える。
+    コーパスが無ければ仮フィラー文を生成する。"""
+    path = ROOT / "corpus" / f"{lang}.txt"
+    if path.exists():
+        text = _CORPUS.setdefault(lang, path.read_text(encoding="utf-8"))
+        if n_chars >= len(text):
+            raise ValueError(f"コーパス不足: {lang} は {len(text):,} 字しかありません")
+        start = random.Random(seed).randrange(len(text) - n_chars)
+        return text[start:start + n_chars]
+    return _synthetic(lang, n_chars, seed)
+
+
+def _synthetic(lang, n_chars, seed=0):
     rng = random.Random(seed)
     a, b, sep = (_JA, _JA2, "") if lang == "ja" else (_EN, _EN2, " ")
     parts, size = [], 0

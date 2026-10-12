@@ -121,11 +121,14 @@ def grade_probe(text, facts, vars_, rules_lang):
         raw = {}
     ans = {x["key"]: raw.get(label(t, x)) for x in facts + vars_}
     ans["rules"] = raw.get(t["rules_key"])
-    norm = lambda x: str(x).strip().upper() if x is not None else None
-    fact_ok = {f["key"]: norm(ans.get(f["key"])) == f["value"] for f in facts}
+    def norm(x, pat):
+        # 「2990（変更後。元は3522）」のような補足付きの回答もあるため、最初に現れる値を取り出す
+        m = re.search(pat, str(x).upper()) if x is not None else None
+        return m.group(0) if m else None
+    fact_ok = {f["key"]: norm(ans.get(f["key"]), r"[A-Z]{2}-\d{4}") == f["value"] for f in facts}
     var_res = {}
     for v in vars_:
-        a = norm(ans.get(v["key"]))
+        a = norm(ans.get(v["key"]), r"\d{4}")
         var_res[v["key"]] = "new" if a == str(v["value"]) else "old" if a == str(v["old"]) else "wrong"
     rules_txt = json.dumps(ans.get("rules", ""), ensure_ascii=False)
     marks = ["【要約】", "（以上）", "3"] if rules_lang == "ja" else ["[Summary]", "(end)", "3"]

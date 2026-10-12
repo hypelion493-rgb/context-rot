@@ -6,6 +6,7 @@ import json
 import sys
 
 from common import ROOT, RESULTS
+from e5 import grade_probe, make_items
 
 
 def load(path):
@@ -25,11 +26,14 @@ def main():
         state = json.loads((d / "state.json").read_text(encoding="utf-8"))
         turns, probes = load(d / "turns.jsonl"), load(d / "probes.jsonl")
         a = state["args"]
+        facts, vars_ = make_items(a["seed"])
+        probes = [{**p, **grade_probe(p["answer"], facts, vars_, a["lang"])} for p in probes]  # 最新の採点で再採点
         lines += [f"## {d.name}", "",
                   f"- モデル: `{a['model']}` / 言語: {a['lang']} / compaction 窓: {a['window']:,} / "
                   f"ターン: {state['done']} / compaction 回数: {turns[-1]['compactions'] if turns else 0}", ""]
 
-        lines += ["| 時点 | ターン | 実コンテキスト | 承認コード正答 | ポート（新値） | ポート（古い値） | ルール想起 |",
+        lines += ["ポート番号の変更は全体の 4 割の地点で伝えるため、それより前の時点では「古い値」が正解。", "",
+                  "| 時点 | ターン | 実コンテキスト | 承認コード正答 | ポート（新値） | ポート（古い値） | ルール想起 |",
                   "|---|---|---|---|---|---|---|"]
         for p in probes:
             lines.append(f"| {p['checkpoint']} | {p['turn']} | {p['ctx'] // 1000}K | {pct(p['fact_acc'])} | "

@@ -24,16 +24,19 @@ class UsageLimitError(RuntimeError):
 
 def run_claude(prompt, stdin_text="", *, model="haiku", effort="low",
                plain=True, session_id=None, resume=None, fork=False,
-               persist=False, autocompact=None, timeout=1800):
+               persist=False, autocompact=None, no_tools=False, timeout=1800):
     """claude -p を 1 回実行し、JSON 結果を dict で返す。
 
     本文はすべて stdin で渡す（資料の後に質問）。claude.CMD 経由では引数中の改行で
     コマンドラインが切れ、後続のフラグが落ちるため、argv には本文を入れない。"""
     message = f"{stdin_text}\n\n{prompt}" if stdin_text and prompt else (stdin_text or prompt)
-    args = [CLAUDE, "-p", "--safe-mode", "--output-format", "json",
+    # --setting-sources local: ユーザー設定（"language": "japanese" など）を読み込まない
+    args = [CLAUDE, "-p", "--safe-mode", "--setting-sources", "local", "--output-format", "json",
             "--model", model, "--effort", effort]
     if plain:
         args += ["--tools", "", "--system-prompt", PLAIN_SYSTEM]
+    elif no_tools:
+        args += ["--tools", ""]
     if session_id:
         args += ["--session-id", session_id]
     if resume:

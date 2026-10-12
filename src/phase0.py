@@ -21,14 +21,14 @@ OUT = RESULTS / "phase0.jsonl"
 
 def needle_doc(lang, n_chars, code, depth=0.5, seed=0):
     body = filler(lang, n_chars, seed)
-    needle = (f"\n重要: 倉庫の暗証番号は {code} である。\n" if lang == "ja"
-              else f"\nImportant: the warehouse passcode is {code}.\n")
+    needle = (f"なお、灯台守の好きな数字は {code} だった。" if lang == "ja"
+              else f"By the way, the lighthouse keeper's favorite number was {code}. ")
     cut = int(len(body) * depth)
     return body[:cut] + needle + body[cut:]
 
 
 def ask_code(lang):
-    return "倉庫の暗証番号を答えて。番号のみ。" if lang == "ja" else "What is the warehouse passcode? Reply with the code only."
+    return "灯台守の好きな数字は？数字のみで答えて。" if lang == "ja" else "What was the lighthouse keeper's favorite number? Reply with the number only."
 
 
 def auth():
@@ -104,7 +104,7 @@ def compact(model="haiku", turns=4, chars_per_turn=40_000):
 
 if __name__ == "__main__":
     step = sys.argv[1] if len(sys.argv) > 1 else "auth"
-    model = sys.argv[2] if len(sys.argv) > 2 else "haiku"
+    model = sys.argv[2] if len(sys.argv) > 2 else "claude-haiku-5-5"
     if step != "auth" and not auth():
         sys.exit("CLI がログインしていません。`claude auth login` を実行してください。")
     try:

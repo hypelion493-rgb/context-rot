@@ -42,7 +42,7 @@ def run_claude(prompt, stdin_text="", *, model="haiku", effort="low",
     WORK.mkdir(exist_ok=True)
     proc = subprocess.run(args, input=stdin_text.encode("utf-8"), cwd=WORK,
                           capture_output=True, timeout=timeout)
-    out = proc.stdout.decode("utf-8", errors="replace").strip()
+    out = _decode(proc.stdout).strip()
     try:
         res = json.loads(out.splitlines()[-1])
     except (json.JSONDecodeError, IndexError):
@@ -50,6 +50,14 @@ def run_claude(prompt, stdin_text="", *, model="haiku", effort="low",
     if res.get("is_error"):
         raise UsageLimitError(res.get("result", "unknown error"))
     return res
+
+
+def _decode(b):
+    # Windows では claude -p の出力がコンソールのコードページ（cp932）になることがある
+    try:
+        return b.decode("utf-8")
+    except UnicodeDecodeError:
+        return b.decode("cp932", errors="replace")
 
 
 def ctx_tokens(res):
